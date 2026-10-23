@@ -16,9 +16,10 @@
   VISIT_PLACES.forEach(v => {
     const p = NPLACES.find(q => q.room && q.name === v.name); if (!p) { console.warn('visitor: place not found', v.name); return; }
     const short = p.sub.replace(/\s+\d+F$/, ''), b = BUILDINGS.find(x => x.short === short || x.id === short);
-    Object.assign(v, { x: p.x, z: p.z, lv: p.lv, bid: b ? b.id : null, loc: p.sub.replace(/\s+(\d+)F$/, '　$1 樓') });
+    const fm = p.sub.match(/\s+(\d+)F$/); Object.assign(v, { x: p.x, z: p.z, lv: p.lv, bid: b ? b.id : null, locB: short, locF: fm ? fm[1] : '' });
   });
   const PLACES = VISIT_PLACES.filter(v => v.x !== undefined);
+  const locOf = v => !v.locB ? '' : (LANG === 'en' ? tr(v.locB) + (v.locF ? ' · ' + v.locF + 'F' : '') : v.locB + (v.locF ? '　' + v.locF + ' 樓' : ''));
 
   /* ---- 樣式 ---- */
   const css = document.createElement('style');
@@ -57,17 +58,20 @@ body.visitor #joyL,body.visitor #joyR,body.visitor #tbtns,body.visitor #intro,bo
   /* ---- 介面 ---- */
   const logoSrc = (document.querySelector('#info img.lg') || {}).src || '';
   const wel = document.createElement('div'); wel.id = 'vWel';
-  wel.innerHTML = '<div class="card">' + (logoSrc ? '<img alt="同樂國小校徽" src="' + logoSrc + '">' : '') + '<h1>同樂國小 校園導覽</h1><p>歡迎蒞臨！請選擇導覽起點</p><div class="go"><button type="button" data-s="gate">校門口</button><button type="button" class="alt" data-s="back">後門</button></div><small>拖曳旋轉・滾輪或雙指縮放</small></div>';
+  function buildWel() {
+    wel.innerHTML = '<div class="card">' + (logoSrc ? '<img alt="' + (LANG === 'en' ? 'TLPS school emblem' : '同樂國小校徽') + '" src="' + logoSrc + '">' : '') + '<h1>' + (LANG === 'en' ? 'TLPS Campus Tour' : '同樂國小 校園導覽') + '</h1><p>' + tr('歡迎蒞臨！請選擇導覽起點') + '</p><div class="go"><button type="button" data-s="gate">' + tr('校門口') + '</button><button type="button" class="alt" data-s="back">' + tr('後門') + '</button></div><small>' + tr('拖曳旋轉・滾輪或雙指縮放') + '</small></div>';
+    wel.querySelectorAll('button[data-s]').forEach(b => b.onclick = () => { const s = VISIT_STARTS.find(x => x.key === b.dataset.s); wel.classList.add('hide'); bar.hidden = false; goStart(s); });
+  }
   document.body.appendChild(wel);
   const bar = document.createElement('div'); bar.id = 'vBar'; bar.hidden = true;
-  bar.innerHTML = '<div id="vCard"><b id="vcN"></b><span class="loc" id="vcL"></span><p id="vcD"></p></div><div id="vRows"><div class="r" id="vrS"><span class="lab">起點</span></div><div class="r" id="vrP"><span class="lab">地點</span></div></div>';
+  bar.innerHTML = '<div id="vCard"><b id="vcN"></b><span class="loc" id="vcL"></span><p id="vcD"></p></div><div id="vRows"><div class="r" id="vrS"><span class="lab" id="vlS">' + tr('起點') + '</span></div><div class="r" id="vrP"><span class="lab" id="vlP">' + tr('地點') + '</span></div></div>';
   document.body.appendChild(bar);
-  const tip = document.createElement('div'); tip.id = 'vTip'; tip.textContent = '拖曳旋轉・滾輪縮放・WASD 平移'; document.body.appendChild(tip);
+  const tip = document.createElement('div'); tip.id = 'vTip'; tip.textContent = tr('拖曳旋轉・滾輪縮放・WASD 平移'); document.body.appendChild(tip);
   const $v = id => document.getElementById(id), btns = {};
   function mk(row, cls, text, fn) { const b = document.createElement('button'); b.type = 'button'; b.className = cls; b.textContent = text; b.onclick = fn; row.appendChild(b); return b; }
-  VISIT_STARTS.forEach(s => { btns[s.key] = mk($v('vrS'), 'st', s.name, () => goStart(s)); });
-  PLACES.forEach(p => { btns[p.name] = mk($v('vrP'), 'pl', p.name, () => goPlace(p)); });
-  mk($v('vrS'), 'all', '全校', () => goAll());
+  VISIT_STARTS.forEach(s => { btns[s.key] = mk($v('vrS'), 'st', tr(s.name), () => goStart(s)); });
+  PLACES.forEach(p => { btns[p.name] = mk($v('vrP'), 'pl', tr(p.name), () => goPlace(p)); });
+  const allBtn = mk($v('vrS'), 'all', tr('全校'), () => goAll());
 
   /* ---- 鏡頭飛行 ---- */
   let tw = null;
@@ -84,7 +88,9 @@ body.visitor #joyL,body.visitor #joyR,body.visitor #tbtns,body.visitor #intro,bo
   addEventListener('pointerdown', () => { tw = null; }, true); addEventListener('wheel', () => { tw = null; }, { capture: true, passive: true });
 
   function setOn(key) { Object.keys(btns).forEach(k => btns[k].classList.toggle('on', k === key || (curStart && k === curStart.key && PLACES.some(q => q.name === key)))); }
-  function showCard(n, l, d) { $v('vcN').textContent = n; $v('vcL').textContent = l || ''; $v('vcL').style.display = l ? '' : 'none'; $v('vcD').textContent = d || ''; $v('vCard').classList.add('show'); }
+  let cardFn = null;
+  function renderCard() { if (!cardFn) return; const [n, l, d] = cardFn(); $v('vcN').textContent = n; $v('vcL').textContent = l || ''; $v('vcL').style.display = l ? '' : 'none'; $v('vcD').textContent = d || ''; $v('vCard').classList.add('show'); }
+  function showCard(fn) { cardFn = fn; renderCard(); }
   let curMark = null, curStart = null, curPlace = null;
   function dropRoute() { buildRibbons([]); }
   function drawRoute(from, p) {
@@ -96,32 +102,38 @@ body.visitor #joyL,body.visitor #joyR,body.visitor #tbtns,body.visitor #intro,bo
   }
   function routeText(r, from, p) {
     const m = Math.max(1, Math.round(r.len / 80));
+    if (LANG === 'en') return 'Suggested route: ' + tr(from.name) + ' → ' + tr(p.name) + ', about ' + Math.round(r.len) + ' m (about ' + m + ' min on foot)' + (r.up ? ' — take the stairs up to floor ' + (p.lv + 1) : '') + '. Follow the yellow arrows.';
     return '建議路線：' + from.name + ' → ' + p.name + '，約 ' + Math.round(r.len) + ' 公尺，步行約 ' + m + ' 分鐘' + (r.up ? '（需上樓梯到 ' + (p.lv + 1) + ' 樓）' : '') + '。沿黃色箭頭前進。';
   }
   function showPlace() {
     const p = curPlace; if (!p) return; const f0 = document.querySelector('#flSel [data-g="0"]'); if (curStart && f0) f0.click(); else cutAll(); if (p.bid) applyCut(p.bid, p.lv);   // 有路線時：其餘建築只留 1 樓，路線才不會被屋頂擋住
     setOn(p.name); curMark = p.name;
     const r = curStart ? drawRoute(curStart, p) : null;
-    if (r) { showCard(p.name, p.loc, routeText(r, curStart, p) + ' ' + p.desc); fly({ x: r.x, z: r.z, az: 0.3, d: Math.min(150, Math.max(48, r.span * 1.5 + 30)), pol: 0.85 }); }
-    else { dropRoute(); showCard(p.name, p.loc, p.desc); fly({ x: p.x, z: p.z, az: 0.3, d: 36, pol: 0.8 }); }
+    if (r) { showCard(() => [tr(p.name), locOf(p), routeText(r, curStart, p) + ' ' + tr(p.desc)]); fly({ x: r.x, z: r.z, az: 0.3, d: Math.min(150, Math.max(48, r.span * 1.5 + 30)), pol: 0.85 }); }
+    else { dropRoute(); showCard(() => [tr(p.name), locOf(p), tr(p.desc)]); fly({ x: p.x, z: p.z, az: 0.3, d: 36, pol: 0.8 }); }
   }
   function goStart(s) {
     view.auto = false; curStart = s; if (curPlace) { showPlace(); return; }
-    cutAll(); dropRoute(); setOn(s.key); showCard(s.name, '', s.desc + ' 點下方地點，會顯示從這裡出發的路線。'); curMark = s.key; fly({ x: s.x, z: s.z, az: s.az, d: s.d, pol: s.pol });
+    cutAll(); dropRoute(); setOn(s.key); showCard(() => [tr(s.name), '', tr(s.desc) + ' ' + tr('點下方地點，會顯示從這裡出發的路線。')]); curMark = s.key; fly({ x: s.x, z: s.z, az: s.az, d: s.d, pol: s.pol });
   }
   function goPlace(p) { view.auto = false; curPlace = p; showPlace(); }
-  function goAll() { view.auto = false; curPlace = null; cutAll(); dropRoute(); setOn(null); $v('vCard').classList.remove('show'); curMark = null; fly({ x: 0, z: -62, az: 0.5, d: 190, pol: 0.95 }); }
+  function goAll() { view.auto = false; curPlace = null; cutAll(); dropRoute(); setOn(null); cardFn = null; $v('vCard').classList.remove('show'); curMark = null; fly({ x: 0, z: -62, az: 0.5, d: 190, pol: 0.95 }); }
   wel.querySelectorAll('button[data-s]').forEach(b => b.onclick = () => { const s = VISIT_STARTS.find(x => x.key === b.dataset.s); wel.classList.add('hide'); bar.hidden = false; goStart(s); });
 
   /* ---- 場景標記（金色＝參觀地點；青色＝起點），隨鏡頭距離縮放，永遠看得到 ---- */
-  function pin(text, col, x, y, z) {
-    const w = 320, h = 120, tex = canvasTex(w, h, g => {
+  function pinTex(text0, col) {
+    const text = tr(text0), w = 320, h = 120;
+    return canvasTex(w, h, g => {
       g.fillStyle = col; g.strokeStyle = '#fff'; g.lineWidth = 6; const r = 18;
       g.beginPath(); g.moveTo(10 + r, 6); g.arcTo(w - 10, 6, w - 10, 76, r); g.arcTo(w - 10, 76, 10, 76, r); g.lineTo(w / 2 + 16, 76); g.lineTo(w / 2, 112); g.lineTo(w / 2 - 16, 76); g.arcTo(10, 76, 10, 6, r); g.arcTo(10, 6, w - 10, 6, r); g.closePath(); g.fill(); g.stroke();
+      if (LANG === 'en') { g.save(); g.translate(4, 4); drawFitText(g, text, w - 8, 78, '"Noto Sans TC",sans-serif', 'bold ', '#fff', 40); g.restore(); return; }
       g.fillStyle = '#fff'; g.font = 'bold ' + (text.length > 4 ? 40 : 48) + 'px "Noto Sans TC",sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, w / 2, 42);
     });
+  }
+  function pin(text, col, x, y, z) {
+    const w = 320, h = 120, tex = pinTex(text, col);
     const s = new T.Sprite(new T.SpriteMaterial({ map: tex, depthTest: false, transparent: true, fog: false }));
-    s.center.set(0.5, 0); s.position.set(x, y, z); s.renderOrder = 40; s.userData.vpin = true; s.scale.set(1, h / w, 1); scene.add(s); return s;
+    s.center.set(0.5, 0); s.position.set(x, y, z); s.renderOrder = 40; s.userData.vpin = true; s.userData.pinText = text; s.userData.pinCol = col; s.scale.set(1, h / w, 1); scene.add(s); return s;
   }
   const PINS = [];
   VISIT_STARTS.forEach(s => { const y = (typeof groundAt === 'function' && isFinite(groundAt(s.x, 3, s.z)) ? groundAt(s.x, 3, s.z) : 0) + 2.5; PINS.push({ k: s.key, s: pin(s.name, '#1f7a8c', s.x, y, s.z) }); });
@@ -150,5 +162,17 @@ body.visitor #joyL,body.visitor #joyR,body.visitor #tbtns,body.visitor #intro,bo
   /* ---- 初始：關掉原本的開場說明，背景慢速環繞全校 ---- */
   try { $('iBird').click(); } catch (e) { /* 忽略 */ }
   Object.assign(orbit, { tx: 0, tz: -62, d: 190, pol: 0.95 }); view.auto = true;
+  /* ---- 語言切換：歡迎卡、按鈕列、資訊卡、地圖標記一起更新 ---- */
+  buildWel();
+  LANG_HOOKS.push(function () {
+    buildWel();
+    $v('vlS').textContent = tr('起點'); $v('vlP').textContent = tr('地點');
+    VISIT_STARTS.forEach(s => { btns[s.key].textContent = tr(s.name); });
+    PLACES.forEach(p => { btns[p.name].textContent = tr(p.name); });
+    allBtn.textContent = tr('全校'); tip.textContent = tr('拖曳旋轉・滾輪縮放・WASD 平移');
+    PINS.forEach(o => { const s = o.s; if (s.material.map) s.material.map.dispose(); s.material.map = pinTex(s.userData.pinText, s.userData.pinCol); s.material.needsUpdate = true; });
+    renderCard();
+  });
+  setLang(LANG);   // 套用上次選擇的語言
   window.__visitor = { goStart, goPlace, goAll, PLACES, VISIT_STARTS };
 })();

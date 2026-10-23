@@ -1,5 +1,76 @@
 /* ===== 核心：場景、材質、積木工具 ===== */
 window.__VISITOR = true; document.body.classList.add('visitor');   // 訪客版：只有鳥瞰
+
+/* ===== 中／英切換：字典與核心（校名「同樂國小」與校徽維持原樣，不翻譯、不置換） ===== */
+const EN = {
+  // 建築與區域
+  '行政大樓':'Administration Building','廚房':'Kitchen','教學區西樓':'Teaching West Building','教學區南樓':'Teaching South Building',
+  '教學區東樓':'Teaching East Building','科任及幼兒園區':'Specialist & Kindergarten Wing','科任樓梯間':'Specialist Wing Stairwell',
+  // 戶外與設施
+  '同新路':'Tongxin Rd.','停車場':'Parking Lot','機車・腳踏車車棚':'Scooter & Bicycle Shed','科任銜接區':'Specialist Link Area',
+  '穿堂休憩區':'Concourse Rest Area','連通橋':'Connecting Bridge','無障礙電梯':'Accessible Elevator','接送區':'Pick-up / Drop-off',
+  '集合場':'Assembly Ground','梅花廣場':'Plum Blossom Plaza','木棧板平台':'Wooden Deck','無障礙坡道':'Accessible Ramp',
+  '操場':'Playground','涼亭':'Pavilion','後門':'Back Gate','校門口':'Main Gate','校門':'Main Gate','圍牆外巷道':'Alley Outside the Wall',
+  '風雨球場':'Covered Court','涼亭・遊戲區':'Pavilion & Play Area','全校':'Whole Campus',
+  // 房間
+  '廁所':'Restroom','男廁':"Men's Restroom",'女廁':"Women's Restroom",'行政辦公室':'Administrative Office','交誼室':'Lounge',
+  '校史室':'School History Room','校長室':"Principal's Office",'禮堂':'Auditorium','4F 管道維修間':'4F Pipe Maintenance Room',
+  '教學設備及檔案室':'Teaching Equipment & Archives','圖書館':'Library','健康中心':'Health Center','活動教室':'Activity Room',
+  '資源班':'Resource Class','英語教室':'English Classroom','愛的書庫':'Love Book Depot','多用途室':'Multipurpose Room',
+  '社會教室':'Social Studies Room','自然教室':'Science Room','語言教室':'Language Room','課輔教室':'After-school Tutoring Room',
+  '教師/校友會辦公室':"Teachers' & Alumni Office",'家長會/志工辦公室':'Parents Assoc. & Volunteer Office','資源回收室':'Recycling Room',
+  '幼兒活動室':'Preschool Activity Room','工具間':'Tool Room','體育器材室':'PE Equipment Room','草原班':'Prairie Class',
+  '藍天班':'Blue Sky Class','彩虹班':'Rainbow Class','幼兒園辦公室':'Kindergarten Office','多功1':'Multipurpose 1','多功2':'Multipurpose 2',
+  '電器室':'Electrical Room','員山親子館':'Yuanshan Parent-Child Center','（空）':'(Empty)','總務處儲藏室':'General Affairs Storage',
+  '教導處儲藏室':'Academic Affairs Storage','音樂教室':'Music Room','電腦教室':'Computer Room','輔導諮商室':'Counseling Room',
+  // 導覽介面
+  '起點':'Start','地點':'Places','歡迎蒞臨！請選擇導覽起點':'Welcome! Please choose a starting point',
+  '拖曳旋轉・滾輪或雙指縮放':'Drag to rotate · Scroll or pinch to zoom','拖曳旋轉・滾輪縮放・WASD 平移':'Drag to rotate · Scroll to zoom · WASD to pan',
+  // 地點介紹
+  '正門入口，從這裡開始參觀。':'Main entrance — start your visit here.',
+  '後門入口，位於校園北側。':'Back entrance, on the north side of campus.',
+  '學校行政業務的辦公處所，洽公、詢問請由此進入。':'Where school administration is handled — come here for business or inquiries.',
+  '陳列學校歷年的歷史與發展紀錄。':"Displays the school's history and records of its development over the years.",
+  '全校集會與各項活動的場地。':'Venue for school-wide assemblies and events.',
+  '幼兒園草原班的教室。':'The classroom of the kindergarten Prairie Class.',
+  '點下方地點，會顯示從這裡出發的路線。':'Tap a place below to see the route from here.'
+};
+let LANG = 'zh';
+try { const sv = localStorage.getItem('tl_lang'); if (sv === 'en' || sv === 'zh') LANG = sv; } catch (e) { /* 無法讀取就用中文 */ }
+function tr(s) {
+  if (LANG !== 'en' || typeof s !== 'string' || !s) return s;
+  if (Object.prototype.hasOwnProperty.call(EN, s)) return EN[s];
+  let m;
+  if ((m = s.match(/^(\d)忠$/))) return 'Grade ' + m[1] + ' Class';
+  if ((m = s.match(/^廚房(\d)F$/))) return 'Kitchen ' + m[1] + 'F';
+  return s;
+}
+const LANG_HOOKS = [];
+function setLang(l) {
+  LANG = l === 'en' ? 'en' : 'zh';
+  try { localStorage.setItem('tl_lang', LANG); } catch (e) { /* 忽略 */ }
+  document.documentElement.lang = LANG === 'en' ? 'en' : 'zh-Hant';
+  document.title = LANG === 'en' ? 'TLPS Campus Tour (Visitor Edition)' : '同樂國小 校園導覽（訪客版）';
+  document.querySelectorAll('#langSw button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lang === LANG)));
+  const ld = document.getElementById('loading'); if (ld) ld.textContent = LANG === 'en' ? 'Loading TLPS campus…' : '正在建立同樂國小…';
+  const lg = document.querySelector('#info img.lg'); if (lg) lg.alt = LANG === 'en' ? 'TLPS school emblem' : '同樂國小校徽';
+  const sn = document.getElementById('schoolName'); if (sn) sn.textContent = LANG === 'en' ? 'TLPS' : '同樂國小';
+  const ct = document.getElementById('creditT'); if (ct && ct.firstChild) ct.firstChild.nodeValue = LANG === 'en' ? 'Inspired by: ' : '製作參考：';
+  LANG_HOOKS.forEach(f => { try { f(); } catch (e) { console.warn('lang hook', e); } });
+}
+document.querySelectorAll('#langSw button').forEach(b => b.onclick = () => setLang(b.dataset.lang));
+// 英文字較長：自動換成兩行並縮小字級，讓文字不超出標籤
+function drawFitText(g, text, w, h, face, weight, color, maxSize) {
+  g.fillStyle = color; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const maxW = w - 28; let size = maxSize || 40, lines = [text];
+  g.font = weight + size + 'px ' + face;
+  if (g.measureText(text).width > maxW) {
+    const ws = text.split(' ');
+    if (ws.length > 1) { let best = null; for (let i = 1; i < ws.length; i++) { const a = ws.slice(0, i).join(' '), b = ws.slice(i).join(' '), mw = Math.max(g.measureText(a).width, g.measureText(b).width); if (!best || mw < best.mw) best = { a, b, mw }; } lines = [best.a, best.b]; }
+  }
+  for (; size > 12; size -= 2) { g.font = weight + size + 'px ' + face; if (Math.max(...lines.map(l => g.measureText(l).width)) <= maxW && lines.length * size * 1.12 <= h - 14) break; }
+  lines.forEach((l, i) => g.fillText(l, w / 2, h / 2 + 2 + (i - (lines.length - 1) / 2) * size * 1.12));
+}
 const T = THREE, H = 3.4;                       // H = 樓層高度(公尺)
 const stage = document.getElementById('stage');
 const renderer = new T.WebGLRenderer({ antialias: true });
@@ -96,6 +167,7 @@ function stairs(ax, az, ay, bx, bz, by, width) {
   g.updateMatrixWorld(true); g.children.forEach(m => walk.push(m)); return g;
 }
 function makeLabelTex(text, bg, fg) {
+  text = tr(text);
   if (typeof DQ !== 'undefined' && DQ.on) return canvasTex(256, 96, (g, w, h) => {
     g.fillStyle = '#f6ecd2'; g.fillRect(0, 0, w, h); g.fillStyle = '#3b2a1e'; g.fillRect(0, 0, w, 8); g.fillRect(0, h - 8, w, 8); g.fillRect(0, 0, 8, h); g.fillRect(w - 8, 0, 8, h);
     g.strokeStyle = '#fffbe9'; g.lineWidth = 3; g.strokeRect(11, 11, w - 22, h - 22);
@@ -103,9 +175,13 @@ function makeLabelTex(text, bg, fg) {
   });
   return canvasTex(256, 96, (g, w, h) => {
     g.fillStyle = bg || '#ffffff'; g.fillRect(0, 0, w, h); g.strokeStyle = '#2f7d63'; g.lineWidth = 6; g.strokeRect(3, 3, w - 6, h - 6);
+    if (LANG === 'en') { drawFitText(g, text, w, h, '"Noto Sans TC",sans-serif', 'bold ', fg || '#1d2a24', 40); return; }
     g.fillStyle = fg || '#1d2a24'; g.font = 'bold ' + (text.length > 8 ? 24 : text.length > 5 ? 34 : 44) + 'px "Noto Sans TC",sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, w / 2, h / 2 + 2);
   });
 }
+LANG_HOOKS.push(function () {   // 切換語言：重畫場景裡所有房名／設施標籤
+  scene.traverse(o => { if (o.isSprite && o.userData && typeof o.userData.text === 'string' && o.material) { if (o.material.map) o.material.map.dispose(); o.material.map = makeLabelTex(o.userData.text, o.userData.bg, o.userData.fg); o.material.needsUpdate = true; } });
+});
 function label(text, x, y, z, scale, bg, fg, key) {
   if (RAISE) y += RAISE;
   const s = new T.Sprite(new T.SpriteMaterial({ map: makeLabelTex(text, bg, fg) }));
